@@ -25,4 +25,39 @@ export const COLORS = {
 export const ANIMATIONS = {
   duration: 300,
   easing: (t) => t,
+  transitions: {
+    scatterRadius: { duration: 300, delay: 0 },
+    gridElevation: { duration: 600, delay: 0 },
+    heatmapIntensity: { duration: 800, delay: 0 },
+    arcWidth: { duration: 400, delay: 0 },
+  },
+};
+
+// Layer configuration for large data sets
+export const LAYER_CONFIG = {
+  scatterplot: {
+    maxRadius: 100,
+    minRadius: 4,
+    radiusScale: 50,
+  },
+  grid: {
+    cellSize: 200,
+    elevationScale: 50,
+    extruded: true,
+  },
+  heatmap: {
+    aggregationSize: 50,
+    radiusPixels: 50,
+    intensity: 1,
+  },
+  hexagon: {
+    radius: 1000,
+    elevationScale: 50,
+    coverage: 0.88,
+  },
+  arc: {
+    widthScale: 20,
+    widthMinPixels: 1,
+    widthMaxPixels: 30,
+  },
 };

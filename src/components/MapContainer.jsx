@@ -1,59 +1,87 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import DeckGL from '@deck.gl/react';
-import { ScatterplotLayer, GridCellLayer } from '@deck.gl/layers';
 import { MAP_CONFIG } from '../config/mapConfig';
+import { useLayerRenderer } from './LayerRenderer';
+import MapLegend from './MapLegend';
 
-const MapContainer = ({ data, visibleLayers }) => {
+const MapContainer = ({ data, visibleLayers, selectedItem, animationMode = 'subtle' }) => {
   const [viewState, setViewState] = useState(MAP_CONFIG.initialViewState);
-  const [layers, setLayers] = useState([]);
-  const [hoveredObject, setHoveredObject] = useState(null);
+  const [animationPhase, setAnimationPhase] = useState(1);
+  const rafRef = useRef(null);
+  const startRef = useRef(null);
+  const fpsTimesRef = useRef([]);
+  const [fps, setFps] = useState(0);
 
+  // Animation behavior based on selected mode:
+  // - 'static': no animation (phase=1)
+  // - 'subtle': one-time entrance transition from 0 -> 1
+  // - 'pulse': slight, slow oscillation with small amplitude
   useEffect(() => {
-    if (data.length === 0) return;
-
-    const newLayers = [];
-
-    // Scatterplot Layer
-    if (visibleLayers.includes('scatter-layer')) {
-      newLayers.push(
-        new ScatterplotLayer({
-          id: 'scatter-layer',
-          data,
-          pickable: true,
-          opacity: 0.8,
-          radiusScale: 50,
-          radiusMinPixels: 4,
-          radiusMaxPixels: 100,
-          getPosition: (d) => [d.longitude, d.latitude],
-          getRadius: (d) => Math.sqrt(d.value) * 10 || 50,
-          getFillColor: [14, 165, 233, 200], // primary-500 blue
-          getLineColor: [0, 0, 0, 255],
-          lineWidthMinPixels: 1,
-          onHover: (info) => setHoveredObject(info.object),
-        })
-      );
+    // cancel any existing RAF
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
 
-    // Grid Layer
-    if (visibleLayers.includes('grid-layer')) {
-      newLayers.push(
-        new GridCellLayer({
-          id: 'grid-layer',
-          data,
-          pickable: true,
-          extruded: true,
-          cellSize: 200,
-          elevationScale: 50,
-          getPosition: (d) => [d.longitude, d.latitude],
-          getFillColor: [139, 92, 246, 150], 
-          getElevation: (d) => d.value * 50,
-          onHover: (info) => setHoveredObject(info.object),
-        })
-      );
+    if (animationMode === 'static') {
+      setAnimationPhase(1);
+      return;
     }
 
-    setLayers(newLayers);
-  }, [data, visibleLayers]);
+    let mounted = true;
+
+    if (animationMode === 'subtle') {
+      // one-time entrance animation
+      startRef.current = null;
+      const duration = 800;
+      const step = (t) => {
+        if (!mounted) return;
+        if (!startRef.current) startRef.current = t;
+        const progress = Math.min((t - startRef.current) / duration, 1);
+        setAnimationPhase(0.2 + 0.8 * progress);
+        if (progress < 1) rafRef.current = requestAnimationFrame(step);
+      };
+      rafRef.current = requestAnimationFrame(step);
+    } else if (animationMode === 'pulse') {
+      // gentle oscillation
+      startRef.current = null;
+      const step = (t) => {
+        if (!mounted) return;
+        if (!startRef.current) startRef.current = t;
+        const elapsed = (t - startRef.current) / 1000; // seconds
+        const phase = 0.9 + 0.05 * Math.sin(elapsed * Math.PI * 2 * 0.25); // slow pulse
+        setAnimationPhase(phase);
+        rafRef.current = requestAnimationFrame(step);
+      };
+      rafRef.current = requestAnimationFrame(step);
+    }
+
+    return () => {
+      mounted = false;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [animationMode]);
+
+  // Lightweight FPS monitor (runs while component mounted)
+  useEffect(() => {
+    let mounted = true;
+    const loop = (t) => {
+      if (!mounted) return;
+      const times = fpsTimesRef.current;
+      times.push(t);
+      // keep last 1s
+      while (times.length > 0 && times[0] < t - 1000) times.shift();
+      setFps(times.length);
+      requestAnimationFrame(loop);
+    };
+    const r = requestAnimationFrame(loop);
+    return () => {
+      mounted = false;
+      cancelAnimationFrame(r);
+    };
+  }, []);
+
+  const layers = useLayerRenderer(data, visibleLayers, selectedItem, animationPhase);
 
   const handleViewStateChange = ({ viewState: newViewState }) => {
     setViewState(newViewState);
@@ -68,27 +96,42 @@ const MapContainer = ({ data, visibleLayers }) => {
         onViewStateChange={handleViewStateChange}
         className="w-full h-full"
       >
-        {/* Tooltip - for short details */}
-        {hoveredObject && (
+        {/* Tooltip */}
+        {selectedItem && (
           <div
             className="fixed bg-white rounded-lg shadow-2xl border border-gray-200 p-3 z-50 pointer-events-none animate-fade-in"
             style={{
-              left: `${Math.min(hoveredObject.x, window.innerWidth - 250)}px`,
-              top: `${Math.max(hoveredObject.y - 100, 10)}px`,
+              left: `${Math.min(selectedItem.x || window.innerWidth / 2, window.innerWidth - 250)}px`,
+              top: `${Math.max((selectedItem.y || 100) - 100, 10)}px`,
               maxWidth: '220px',
             }}
           >
             <div className="font-bold text-sm text-gray-800 mb-2 truncate">
-              {hoveredObject.label}
+              {selectedItem.label}
             </div>
             <div className="text-xs text-gray-600 space-y-1">
-              <div><span className="font-semibold text-primary-600">Value:</span> {hoveredObject.value}</div>
-              <div><span className="font-semibold text-primary-600">Lat:</span> {hoveredObject.latitude.toFixed(4)}</div>
-              <div><span className="font-semibold text-primary-600">Lon:</span> {hoveredObject.longitude.toFixed(4)}</div>
+              <div><span className="font-semibold text-primary-600">Value:</span> {selectedItem.value}</div>
+              <div><span className="font-semibold text-primary-600">Lat:</span> {selectedItem.latitude.toFixed(4)}</div>
+              <div><span className="font-semibold text-primary-600">Lon:</span> {selectedItem.longitude.toFixed(4)}</div>
             </div>
           </div>
         )}
       </DeckGL>
+
+      {/* Legend */}
+      <MapLegend visibleLayers={visibleLayers} />
+
+      {/* Performance Monitor */}
+      <div className="absolute top-6 right-6 bg-white bg-opacity-90 rounded-lg shadow-md p-3 text-xs z-40 max-w-48">
+          <div className="font-bold text-gray-700 mb-2">📊 Performance</div>
+          <div className="text-gray-600 space-y-1">
+            <div>Data Points: <span className="font-semibold">{data.length.toLocaleString()}</span></div>
+            <div>Active Layers: <span className="font-semibold">{visibleLayers.length}</span></div>
+            <div>Animation Mode: <span className="font-semibold">{animationMode}</span></div>
+            <div>Animation Phase: <span className="font-semibold">{Math.round(animationPhase * 100)}%</span></div>
+            <div>FPS: <span className="font-semibold">{fps}</span></div>
+          </div>
+      </div>
 
       {/* Empty State */}
       {data.length === 0 && (
@@ -103,3 +146,4 @@ const MapContainer = ({ data, visibleLayers }) => {
 };
 
 export default MapContainer;
+

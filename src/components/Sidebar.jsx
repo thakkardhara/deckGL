@@ -8,6 +8,8 @@ const Sidebar = ({
   onExport,
   selectedItem,
   onItemSelect,
+  animationMode,
+  onAnimationModeChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState({
@@ -98,22 +100,48 @@ const Sidebar = ({
           </h3>
           {expandedSections.layers && (
             <div className="space-y-3">
-              {['scatter-layer', 'grid-layer'].map((layer) => (
-                <label key={layer} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+              {[
+                { id: 'scatter-layer', name: '📍 Scatterplot', desc: 'Point markers' },
+                { id: 'grid-layer', name: '🔲 Grid Cells', desc: 'Aggregated grid' },
+                { id: 'heatmap-layer', name: '🔥 Heatmap', desc: 'Density heat' },
+                { id: 'hexagon-layer', name: '⬡ Hexagon', desc: 'Hex binning' },
+                { id: 'arc-layer', name: '🌐 Arc Routes', desc: 'Connections' },
+              ].map((layer) => (
+                <label key={layer.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
-                    checked={visibleLayers.includes(layer)}
-                    onChange={() => onLayerToggle(layer)}
+                    checked={visibleLayers.includes(layer.id)}
+                    onChange={() => onLayerToggle(layer.id)}
                     className="w-5 h-5 accent-primary-600 rounded cursor-pointer"
                   />
-                  <span className="text-sm font-medium text-gray-700">
-                    {layer === 'scatter-layer' && '📍 Scatterplot'}
-                    {layer === 'grid-layer' && '🔲 Grid Cells'}
-                  </span>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-700">{layer.name}</div>
+                    <div className="text-xs text-gray-500">{layer.desc}</div>
+                  </div>
                 </label>
               ))}
             </div>
           )}
+        </div>
+
+        {/* Animation Mode */}
+        <div>
+          <h3 className="text-xs uppercase tracking-wider font-bold text-gray-600 mt-3">⚡ Animation Mode</h3>
+          <div className="mt-2 space-y-2">
+            {['static', 'subtle', 'pulse'].map((mode) => (
+              <label key={mode} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                <input
+                  type="radio"
+                  name="animationMode"
+                  value={mode}
+                  checked={animationMode === mode}
+                  onChange={() => onAnimationModeChange && onAnimationModeChange(mode)}
+                  className="w-4 h-4 accent-primary-600 rounded cursor-pointer"
+                />
+                <div className="text-sm text-gray-700 capitalize">{mode}</div>
+              </label>
+            ))}
+          </div>
         </div>
 
         {/* Export */}

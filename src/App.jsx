@@ -11,6 +11,7 @@ const App = () => {
   const [visibleLayers, setVisibleLayers] = useState(['scatter-layer']);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [animationMode, setAnimationMode] = useState('subtle');
 
   // Load data on component mount
   useEffect(() => {
@@ -76,6 +77,10 @@ const App = () => {
     setSelectedItem(item);
   };
 
+  const handleAnimationModeChange = (mode) => {
+    setAnimationMode(mode);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-primary-50 to-accent-50">
@@ -99,11 +104,15 @@ const App = () => {
         onExport={handleExport}
         selectedItem={selectedItem}
         onItemSelect={handleItemSelect}
+        animationMode={animationMode}
+        onAnimationModeChange={handleAnimationModeChange}
       />
       <div className="flex-1 relative overflow-hidden">
         <MapContainer
           data={visibleLayers.length > 0 ? filteredData : []}
           visibleLayers={visibleLayers}
+          selectedItem={selectedItem}
+          animationMode={animationMode}
         />
         <div className="fixed bottom-6 left-80 z-50 animate-fade-in">
           {selectedItem && (
